@@ -1,175 +1,210 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const TaskContext = createContext();
 
-const INITIAL_TASKS = [
-  {
-    id: 'TSK-1048',
-    customer: 'أحمد العتيبي',
-    customerEn: 'Ahmad Al-Otaibi',
-    phone: '050 123 4567',
-    specialty: 'Dental',
-    specialtyAr: 'طب الأسنان',
-    preferred_date: 'غداً (الخميس)',
-    preferred_time: '04:00 مساءً',
-    time: 'منذ 5 دقائق',
-    timeEn: '5 mins ago',
-    status: 'New',
-    priority: 'urgent',
-    type: 'Appointment',
-    channel: 'web',
-    request: 'حجز موعد كشف أسنان عاجل بسبب ألم مستمر، يطلب الموعد غداً الساعة 4:00 عصراً.',
-    requestEn: 'Urgent dental checkup appointment requested for tomorrow at 4:00 PM due to ongoing pain.',
-    transcript: [
-      { role: 'assistant', text: 'أهلاً بك في عيادات عافية، معك سارة المساعد الصوتي. كيف أقدر أساعدك اليوم؟', time: '10:42 ص' },
-      { role: 'customer', text: 'يا هلا، حاب أحجز موعد كشف أسنان بكرة العصر الساعة 4.', time: '10:42 ص' },
-      { role: 'assistant', text: 'أبشر، يسعدني ترتيب ذلك. فضلاً زودني باسمك الكريم ورقم الجوال لتأكيد الحجز.', time: '10:43 ص' },
-      { role: 'customer', text: 'اسمي أحمد العتيبي، ورقم جوالي 0501234567.', time: '10:43 ص' },
-      { role: 'assistant', text: 'شكراً لك يا أحمد. تم تسجيل طلبك لحجز موعد عيادة الأسنان غداً الساعة 4:00 عصراً. هل البيانات صحيحة لتأكيد الحجز؟', time: '10:43 ص' },
-      { role: 'customer', text: 'نعم البيانات صحيحة، شكراً لك.', time: '10:44 ص' },
-      { role: 'assistant', text: 'تم تأكيد طلبك بنجاح! سيتصل بك فريق الاستقبال للتأكيد النهائي.', time: '10:44 ص' }
-    ]
-  },
-  {
-    id: 'TSK-1047',
-    customer: 'سارة القحطاني',
-    customerEn: 'Sarah Al-Qahtani',
-    phone: '055 842 0193',
-    specialty: 'General',
-    specialtyAr: 'الطب العام',
-    preferred_date: 'اليوم',
-    preferred_time: 'خلال ساعة',
-    time: 'منذ 18 دقيقة',
-    timeEn: '18 mins ago',
-    status: 'In progress',
-    priority: 'high',
-    type: 'Callback',
-    channel: 'web',
-    request: 'طلب معاودة اتصال للتحقق من تغطية تأمين بوبا قبل الحضور للعيادة العامة.',
-    requestEn: 'Callback request to verify Bupa insurance policy coverage before visit.',
-    transcript: [
-      { role: 'assistant', text: 'مرحباً بك في عيادات عافية. كيف يمكنني خدمتك؟', time: '10:29 ص' },
-      { role: 'customer', text: 'أبغى أعرف هل تأمين بوبا الفئة الفضية يغطي كشف الطب العام اليوم؟', time: '10:30 ص' },
-      { role: 'assistant', text: 'نعم، نعتمد بوبا العربية. هل ترغبين بتسجيل طلب معاودة اتصال لتأكيد الموافقة الفورية عبر رقم ملفك؟', time: '10:30 ص' },
-      { role: 'customer', text: 'نعم يا ليت، اسمي سارة القحطاني وجوالي 0558420193.', time: '10:31 ص' }
-    ]
-  },
-  {
-    id: 'TSK-1046',
-    customer: 'محمد الدوسري',
-    customerEn: 'Mohammad Al-Dosari',
-    phone: '053 691 2840',
-    specialty: 'Cardiology',
-    specialtyAr: 'عيادة القلب',
-    preferred_date: 'السبت القادم',
-    preferred_time: '10:00 صباحاً',
-    time: 'منذ 42 دقيقة',
-    timeEn: '42 mins ago',
-    status: 'New',
-    priority: 'urgent',
-    type: 'Appointment',
-    channel: 'web',
-    request: 'استشارة قلبية لمتابعة ضغط الدم ومراجعة تخطيط القلب مع استشاري المركز.',
-    requestEn: 'Cardiology consultation requested for Saturday morning ECG and blood pressure follow-up.',
-    transcript: [
-      { role: 'assistant', text: 'أهلاً بك في عيادات عافية، تفضل كيف أساعدك؟', time: '10:05 ص' },
-      { role: 'customer', text: 'أريد حجز موعد مع طبيب القلب لمتابعة نتائج تخطيط القلب السبت القادم.', time: '10:06 ص' },
-      { role: 'assistant', text: 'أهلاً بك أخي محمد، تم حجز موعد مبدئي السبت الساعة 10:00 ص لعيادة القلب.', time: '10:07 ص' }
-    ]
-  },
-  {
-    id: 'TSK-1045',
-    customer: 'ريم الحربي',
-    customerEn: 'Reem Al-Harbi',
-    phone: '054 220 7631',
-    specialty: 'Dermatology',
-    specialtyAr: 'الجلدية والليزر',
-    preferred_date: 'الأحد',
-    preferred_time: '06:30 مساءً',
-    time: 'منذ ساعتين',
-    timeEn: '2 hours ago',
-    status: 'Completed',
-    priority: 'normal',
-    type: 'Appointment',
-    channel: 'web',
-    request: 'جلسة نضارة وتقشير كربوني في عيادة الجلدية، تم تأكيد الحجز وإرسال تفاصيل الموعد عبر رسالة نصية.',
-    requestEn: 'Dermatology session confirmed and SMS notification sent.',
-    transcript: [
-      { role: 'assistant', text: 'أهلاً بكِ في عيادات عافية. كيف نقدر نساعدك؟', time: '08:45 ص' },
-      { role: 'customer', text: 'أريد حجز موعد استشارة جلدية الأحد مساءً.', time: '08:46 ص' },
-      { role: 'assistant', text: 'تم تسجيل موعدك يوم الأحد 6:30 م في قسم الجلدية.', time: '08:47 ص' }
-    ]
-  },
-  {
-    id: 'TSK-1044',
-    customer: 'خالد الغامدي',
-    customerEn: 'Khalid Al-Ghamdi',
-    phone: '050 317 9582',
-    specialty: 'Pharmacy',
-    specialtyAr: 'الصيدلية وصرف الأدوية',
-    preferred_date: 'اليوم',
-    preferred_time: 'فوري',
-    time: 'منذ 3 ساعات',
-    timeEn: '3 hours ago',
-    status: 'Completed',
-    priority: 'high',
-    type: 'Callback',
-    channel: 'web',
-    request: 'طلب تكرار وصفة دواء مزمن معتمد وتوصيله للمنزل.',
-    requestEn: 'Prescription refill request for chronic allergy medication.',
-    transcript: [
-      { role: 'assistant', text: 'مرحباً بك في عيادات عافية، معك المساعد الصوتي.', time: '07:30 ص' },
-      { role: 'customer', text: 'أحتاج تجديد وصفة علاج الحساسية المزمنة المرسلة بالملف.', time: '07:31 ص' }
-    ]
+export const SUPABASE_URL = 'https://bdbnenxbvbecotlocbmp.supabase.co';
+export const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkYm5lbnhidmJlY290bG9jYm1wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM3MDE0NTgsImV4cCI6MjEwOTI3NzQ1OH0.oaHJc0Q6qoXtnHhG4ajBztHLmowklTGDoErtPT-lsIQ';
+
+function formatTimeAgo(isoString) {
+  if (!isoString) return 'منذ قليل';
+  try {
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'الآن';
+    if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
+    const h = Math.floor(diffMins / 60);
+    if (h < 24) return `منذ ${h} ساعة`;
+    return `منذ ${Math.floor(h / 24)} يوم`;
+  } catch {
+    return 'منذ قليل';
   }
-];
+}
+
+function formatTimeAgoEn(isoString) {
+  if (!isoString) return 'Just now';
+  try {
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const h = Math.floor(diffMins / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch {
+    return 'Just now';
+  }
+}
+
+function safeParseTranscript(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+const SPECIALTY_MAP = {
+  Dental: 'طب الأسنان',
+  General: 'الطب العام',
+  Cardiology: 'عيادة القلب',
+  Dermatology: 'الجلدية والليزر',
+  Pharmacy: 'الصيدلية',
+  Cosmetic: 'عيادة التجميل'
+};
+
+function mapRow(row) {
+  const transcript = safeParseTranscript(row.transcript);
+  const specEn = row.specialty || 'General';
+  const specAr = row.specialty_ar || SPECIALTY_MAP[specEn] || specEn;
+
+  const finalTranscript =
+    transcript.length > 0
+      ? transcript
+      : row.request
+      ? [
+          { role: 'assistant', text: 'أهلاً بك في عيادات عافية، معك سارة المساعد الصوتي. كيف أقدر أساعدك اليوم؟', time: '—' },
+          { role: 'customer', text: row.request, time: '—' },
+          { role: 'assistant', text: 'تم تسجيل طلبك بنجاح. سيتواصل معك فريق الاستقبال قريباً.', time: '—' }
+        ]
+      : [];
+
+  return {
+    id: row.id,
+    customer: row.customer || 'مراجع عيادات عافية',
+    customerEn: row.customer_en || row.customer || 'Patient',
+    phone: row.phone || '—',
+    specialty: specEn,
+    specialtyAr: specAr,
+    preferred_date: row.preferred_date || 'اليوم',
+    preferred_time: row.preferred_time || '',
+    status: row.status || 'New',
+    priority: row.priority || 'normal',
+    type: row.type || 'Appointment',
+    channel: row.channel || 'web',
+    request: row.request || 'طلب مسجل عبر المساعد الصوتي',
+    requestEn: row.request_en || row.request || 'Voice request',
+    transcript: finalTranscript,
+    time: formatTimeAgo(row.created_at),
+    timeEn: formatTimeAgoEn(row.created_at),
+    created_at: row.created_at
+  };
+}
 
 export function TaskProvider({ children }) {
   const [tasks, setTasks] = useState(() => {
     try {
-      const saved = localStorage.getItem('afiya_tasks');
-      return saved ? JSON.parse(saved) : INITIAL_TASKS;
+      const saved = localStorage.getItem('afiya_tasks_v2');
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return INITIAL_TASKS;
+      return [];
     }
   });
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+
+  const fetchTasksFromSupabase = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/tasks?select=*&order=created_at.desc`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const rows = await res.json();
+
+      if (Array.isArray(rows) && rows.length > 0) {
+        const liveTasks = rows.map(mapRow);
+        setTasks(liveTasks);
+        try { localStorage.setItem('afiya_tasks_v2', JSON.stringify(liveTasks)); } catch {}
+        setLastSyncTime(new Date());
+        return { success: true, count: liveTasks.length };
+      }
+
+      setTasks([]);
+      return { success: true, count: 0 };
+    } catch (err) {
+      return { success: false, error: err.message };
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTasksFromSupabase();
+  }, [fetchTasksFromSupabase]);
+
   useEffect(() => {
     try {
-      localStorage.setItem('afiya_tasks', JSON.stringify(tasks));
-    } catch (e) {
-      console.error('Failed to persist tasks', e);
-    }
+      localStorage.setItem('afiya_tasks_v2', JSON.stringify(tasks));
+    } catch {}
   }, [tasks]);
 
+  const updateTaskStatus = async (id, newStatus) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+
+    try {
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/tasks?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus })
+        }
+      );
+    } catch (e) {
+      console.warn('[TaskContext] PATCH status failed:', e.message);
+    }
+  };
+
   const addTask = (newTask) => {
-    const taskWithId = {
+    const task = {
       id: `TSK-${Math.floor(1000 + Math.random() * 9000)}`,
       time: 'الآن',
       timeEn: 'Just now',
       status: 'New',
       channel: 'web',
-      priority: newTask.priority || 'urgent',
-      type: newTask.type || 'Appointment',
-      ...newTask,
+      priority: 'urgent',
+      type: 'Appointment',
+      transcript: [],
+      ...newTask
     };
-    setTasks((prev) => [taskWithId, ...prev]);
-    return taskWithId;
-  };
-
-  const updateTaskStatus = (id, newStatus) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, status: newStatus } : t))
-    );
+    setTasks(prev => [task, ...prev]);
+    return task;
   };
 
   const resetTasks = () => {
-    setTasks(INITIAL_TASKS);
-    localStorage.setItem('afiya_tasks', JSON.stringify(INITIAL_TASKS));
+    setTasks([]);
+    try {
+      localStorage.removeItem('afiya_tasks_v2');
+    } catch {}
   };
 
   return (
-    <TaskContext.Provider value={{ tasks, addTask, updateTaskStatus, resetTasks }}>
+    <TaskContext.Provider value={{
+      tasks,
+      addTask,
+      updateTaskStatus,
+      resetTasks,
+      fetchTasksFromSupabase,
+      isSyncing,
+      lastSyncTime
+    }}>
       {children}
     </TaskContext.Provider>
   );

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminHeader from '../components/AdminHeader';
+import { voiceSettingsService } from '../services/supabase';
 
 const VOICE_PERSONAS = [
   {
@@ -134,7 +135,7 @@ export default function VoiceDialect({ onNavigate }) {
 
   const [settings, setSettings] = useState(() => {
     try {
-      const saved = localStorage.getItem('afiya_voice_settings');
+      const saved = localStorage.getItem('afiya_voice_settings_v2');
       return saved
         ? JSON.parse(saved)
         : {
@@ -160,9 +161,49 @@ export default function VoiceDialect({ onNavigate }) {
   });
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isCloudSynced, setIsCloudSynced] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef(null);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setToastVisible(true);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
+  };
+
+  const loadSettingsFromSupabase = useCallback(async (isManual = false) => {
+    setIsSyncing(true);
+    try {
+      const res = await voiceSettingsService.getSettings();
+      if (res.success && res.data) {
+        setSettings(prev => ({ ...prev, ...res.data }));
+        localStorage.setItem('afiya_voice_settings_v2', JSON.stringify({ ...settings, ...res.data }));
+        setIsCloudSynced(true);
+        if (isManual) {
+          showToast(isAr ? 'تم جلب وتحديث إعدادات الصوت من قاعدة البيانات!' : 'Voice settings synced from Supabase!');
+        }
+      } else {
+        setIsCloudSynced(false);
+        if (isManual) {
+          showToast(isAr ? 'لم يتم العثور على إعدادات سابقة في السحابة، تم الحفاظ على الإعدادات الحالية.' : 'No settings in cloud.');
+        }
+      }
+    } catch (e) {
+      setIsCloudSynced(false);
+      if (isManual) {
+        showToast(isAr ? 'تعذر الاتصال بالسحابة.' : 'Cloud connection failed.');
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isAr, settings]);
+
+  useEffect(() => {
+    loadSettingsFromSupabase(false);
+  }, [loadSettingsFromSupabase]);
 
   useEffect(() => {
     document.title = isAr
@@ -178,19 +219,21 @@ export default function VoiceDialect({ onNavigate }) {
     };
   }, [isAr]);
 
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setToastVisible(true);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
-  };
-
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
-      localStorage.setItem('afiya_voice_settings', JSON.stringify(settings));
-      showToast(isAr ? 'تم حفظ إعدادات الصوت واللهجة بنجاح!' : 'Voice and dialect settings saved successfully!');
+      localStorage.setItem('afiya_voice_settings_v2', JSON.stringify(settings));
+      showToast(isAr ? 'جاري حفظ الإعدادات في قاعدة البيانات...' : 'Saving to Supabase...');
+
+      const res = await voiceSettingsService.saveSettings(settings);
+      if (res.success) {
+        setIsCloudSynced(true);
+        showToast(isAr ? 'تم حفظ ومزامنة إعدادات الصوت واللهجة في السحابة بنجاح!' : 'Voice settings saved to Supabase!');
+      } else {
+        showToast(isAr ? 'تم الحفظ محلياً (حدث تنبيه في مزامنة السحابة)' : 'Saved locally (cloud sync notice)');
+      }
     } catch (e) {
       console.error(e);
+      showToast(isAr ? 'تم الحفظ محلياً' : 'Saved locally');
     }
   };
 
@@ -230,16 +273,59 @@ export default function VoiceDialect({ onNavigate }) {
         <AdminHeader onNavigate={onNavigate} />
 
         <div className="page-content-exact">
-          <div className="org-head-title-row">
-            <span className="breadcrumb-mini">
-              {isAr ? 'الإعدادات العامة · صوت ولهجة المساعد' : 'Settings · AI Speech & Tone'}
-            </span>
-            <h1 className="overview-heading">{isAr ? 'صوت ولهجة المساعد الذكي' : 'AI Voice & Dialect Configuration'}</h1>
-            <p className="overview-subtext">
-              {isAr
-                ? 'تخصيص الهوية الصوتية لعيادات عافية، اختيار اللهجة الإقليمية المناسبة (لغة عربية فصحى أو لهجات سعودية وخليجية)، وضبط نبرة وسرعة التفاعل الصوتي.'
-                : 'Configure persona voices, Saudi regional dialects, speech pacing, and factual guardrails.'}
-            </p>
+          <div className="org-head-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <span className="breadcrumb-mini" style={{ margin: 0 }}>
+                  {isAr ? 'الإعدادات العامة · صوت ولهجة المساعد' : 'Settings · AI Speech & Tone'}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '20px',
+                    background: isCloudSynced ? '#DCFCE7' : '#FEF3C7',
+                    color: isCloudSynced ? '#15803D' : '#B45309'
+                  }}
+                >
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isCloudSynced ? '#16A34A' : '#D97706' }}></span>
+                  {isCloudSynced ? (isAr ? 'متزامن مع السحابة' : 'Cloud Synced') : (isAr ? 'محلي / غير متزامن' : 'Local')}
+                </span>
+              </div>
+              <h1 className="overview-heading">{isAr ? 'صوت ولهجة المساعد الذكي' : 'AI Voice & Dialect Configuration'}</h1>
+              <p className="overview-subtext">
+                {isAr
+                  ? 'تخصيص الهوية الصوتية لعيادات عافية، اختيار اللهجة الإقليمية المناسبة (لغة عربية فصحى أو لهجات سعودية وخليجية)، وضبط نبرة وسرعة التفاعل الصوتي.'
+                  : 'Configure persona voices, Saudi regional dialects, speech pacing, and factual guardrails.'}
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-update-data"
+                onClick={() => loadSettingsFromSupabase(true)}
+                disabled={isSyncing}
+                title={isAr ? 'تحديث ومزامنة الإعدادات من Supabase' : 'Sync settings from Supabase'}
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }}
+                >
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.42"></path>
+                </svg>
+                <span>{isSyncing ? (isAr ? 'جاري المزامنة...' : 'Syncing...') : (isAr ? 'مزامنة مع السحابة' : 'Sync Cloud')}</span>
+              </button>
+            </div>
           </div>
 
           <div className="sub-nav-tabs">

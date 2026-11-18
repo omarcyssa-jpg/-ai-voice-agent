@@ -28,7 +28,7 @@ function drawWaveform(canvas, isPlaying = false) {
 
 export default function Dashboard({ onNavigate }) {
   const { lang, isAr, t } = useLanguage();
-  const { tasks, updateTaskStatus, resetTasks } = useTasks();
+  const { tasks, updateTaskStatus, fetchTasksFromSupabase, isSyncing } = useTasks();
 
   const [filter, setFilter] = useState('All');
   const [deptFilter, setDeptFilter] = useState('All');
@@ -70,19 +70,19 @@ export default function Dashboard({ onNavigate }) {
 
   const filterTabs = isAr
     ? [
-        { key: 'All', label: 'الكل' },
-        { key: 'New', label: `جديد (${kpiNew})` },
-        { key: 'In progress', label: `قيد المتابعة (${kpiProgress})` },
-        { key: 'Completed', label: `مكتمل (${kpiCompleted})` },
-        { key: 'Cancelled', label: 'ملغي' }
-      ]
+      { key: 'All', label: 'الكل' },
+      { key: 'New', label: `جديد (${kpiNew})` },
+      { key: 'In progress', label: `قيد المتابعة (${kpiProgress})` },
+      { key: 'Completed', label: `مكتمل (${kpiCompleted})` },
+      { key: 'Cancelled', label: 'ملغي' }
+    ]
     : [
-        { key: 'All', label: 'All' },
-        { key: 'New', label: `New (${kpiNew})` },
-        { key: 'In progress', label: `In progress (${kpiProgress})` },
-        { key: 'Completed', label: `Completed (${kpiCompleted})` },
-        { key: 'Cancelled', label: 'Cancelled' }
-      ];
+      { key: 'All', label: 'All' },
+      { key: 'New', label: `New (${kpiNew})` },
+      { key: 'In progress', label: `In progress (${kpiProgress})` },
+      { key: 'Completed', label: `Completed (${kpiCompleted})` },
+      { key: 'Cancelled', label: 'Cancelled' }
+    ];
 
   const filteredTasks = tasks.filter((r) => {
     const matchesFilter = filter === 'All' || r.status === filter;
@@ -155,12 +155,27 @@ export default function Dashboard({ onNavigate }) {
                 type="button"
                 className="btn-update-data"
                 id="btnUpdateData"
-                onClick={() => {
-                  showToast(isAr ? 'تم تحديث البيانات وتزامن مهام الصوت بنجاح!' : 'Data synced and updated with voice channel!');
+                disabled={isSyncing}
+                onClick={async () => {
+                  showToast(isAr ? 'جاري الاتصال وسحب أحدث البيانات من قاعدة البيانات...' : 'Fetching latest data from Supabase...');
+                  const res = await fetchTasksFromSupabase();
+                  if (res?.success) {
+                    showToast(isAr ? `تم تحديث البيانات وتزامن مهام الصوت (${res.count} مهمة)!` : `Data synced with voice channel (${res.count} tasks)!`);
+                  } else {
+                    showToast(isAr ? 'تعذر جلب البيانات، تأكد من الاتصال.' : 'Sync failed, check connection.');
+                  }
                 }}
               >
-                <span>{isAr ? 'تحديث ومزامنة البيانات' : 'Sync Voice Tasks'}</span>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <span>{isSyncing ? (isAr ? 'جاري التحديث...' : 'Syncing...') : (isAr ? 'تحديث ومزامنة البيانات' : 'Sync Voice Tasks')}</span>
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  style={{ animation: isSyncing ? 'spin 1s linear infinite' : 'none' }}
+                >
                   <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.42"></path>
                 </svg>
               </button>
@@ -353,10 +368,10 @@ export default function Dashboard({ onNavigate }) {
                                 {row.status === 'New'
                                   ? (isAr ? 'جديد •' : 'New •')
                                   : row.status === 'In progress'
-                                  ? (isAr ? 'قيد المتابعة •' : 'In Progress •')
-                                  : row.status === 'Completed'
-                                  ? (isAr ? 'مكتمل ✓' : 'Completed ✓')
-                                  : (isAr ? 'ملغي •' : 'Cancelled •')}
+                                    ? (isAr ? 'قيد المتابعة •' : 'In Progress •')
+                                    : row.status === 'Completed'
+                                      ? (isAr ? 'مكتمل ✓' : 'Completed ✓')
+                                      : (isAr ? 'ملغي •' : 'Cancelled •')}
                               </span>
                             </td>
 
@@ -408,10 +423,11 @@ export default function Dashboard({ onNavigate }) {
                 </span>
                 <button
                   type="button"
-                  style={{ background: 'transparent', border: 'none', color: '#64748B', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
-                  onClick={resetTasks}
+                  style={{ background: 'transparent', border: 'none', color: '#0D7C66', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}
+                  onClick={fetchTasksFromSupabase}
+                  disabled={isSyncing}
                 >
-                  {isAr ? 'إعادة ضبط البيانات التجريبية الافتراضية' : 'Reset Demo Data'}
+                  {isSyncing ? (isAr ? 'جاري التحديث...' : 'Refreshing...') : (isAr ? '↻ تحديث المهام' : '↻ Refresh Tasks')}
                 </button>
               </div>
             </div>
@@ -440,7 +456,7 @@ export default function Dashboard({ onNavigate }) {
                     {selectedTask.channel === 'web' ? (isAr ? 'الموقع الإلكتروني' : 'Web Voice') : (isAr ? 'الهاتف' : 'Phone')}
                   </span>
                 </div>
-                <h3 className="drawer-patient-name">{isAr ? selectedTask.customer : (selectedTask.customerEn || selectedTask.customer)}</h3>
+                <h3 className="drawer-patient-name">{isAr ? selectedTask.customer : (selectedTask.customer_en || selectedTask.customer)}</h3>
                 <span className="drawer-patient-phone">📞 {selectedTask.phone}</span>
               </div>
 
@@ -647,9 +663,9 @@ export default function Dashboard({ onNavigate }) {
                         >
                           {msg.role === 'assistant' ? (
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-                              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                              <line x1="12" y1="19" x2="12" y2="22"/>
+                              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                              <line x1="12" y1="19" x2="12" y2="22" />
                             </svg>
                           ) : (
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">

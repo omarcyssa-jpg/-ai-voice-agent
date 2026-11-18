@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { authService } from '../services/supabase';
 
 const T = {
   ar: {
@@ -10,6 +11,7 @@ const T = {
     forgot: 'نسيت كلمة المرور؟',
     remember: 'تذكرني',
     signIn: 'تسجيل الدخول',
+    signingIn: 'جاري التحقق والاتصال...',
     portal: 'بوابة إدارة العيادة',
     headline: ['تبدأ الرعاية بمحادثة،', 'والإدارة أصبحت', 'أكثر وضوحاً.'],
     p1: 'مكان واحد لمتابعة طلبات العملاء، وإدارة ردود المساعد الصوتي، وضبط إعدادات عيادات عافية.',
@@ -27,6 +29,7 @@ const T = {
     forgot: 'Forgot password?',
     remember: 'Remember me',
     signIn: 'Sign in',
+    signingIn: 'Authenticating...',
     portal: 'Clinic admin portal',
     headline: ['Care starts with a', 'conversation, and', 'management just got clearer.'],
     p1: 'One place to track customer requests, manage voice assistant responses, and configure Afiya Clinics settings.',
@@ -39,7 +42,14 @@ const T = {
 
 export default function Login({ onNavigate }) {
   const [lang, setLang] = useState(() => localStorage.getItem('afiya_lang') || 'ar');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
   const t = T[lang] || T.ar;
   const isAr = lang === 'ar';
 
@@ -55,12 +65,37 @@ export default function Login({ onNavigate }) {
     localStorage.setItem('afiya_lang', lang);
   }, [lang, isAr]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (onNavigate) {
-      onNavigate('/dashboard');
-    } else {
-      window.location.href = '/dashboard';
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMsg(isAr ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور' : 'Please enter email and password');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const res = await authService.login(email, password);
+
+      if (res.success) {
+        setSuccessMsg(isAr ? 'تم تسجيل الدخول بنجاح! جاري تحويلك...' : 'Login successful! Redirecting...');
+        setTimeout(() => {
+          if (onNavigate) {
+            onNavigate('/dashboard');
+          } else {
+            window.location.href = '/dashboard';
+          }
+        }, 500);
+      } else {
+        setErrorMsg(res.error || (isAr ? 'بيانات تسجيل الدخول غير صحيحة' : 'Invalid login credentials'));
+      }
+    } catch (err) {
+      setErrorMsg(isAr ? 'حدث خطأ في الاتصال، يرجى المحاولة مجدداً' : 'Connection error, please try again');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -77,7 +112,22 @@ export default function Login({ onNavigate }) {
     <>
       <header className="login-top-navbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <a href="/" onClick={goToClient} style={{ color: '#0D7C66', textDecoration: 'none', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px', background: '#E8F6F3', padding: '6px 12px', borderRadius: '8px' }}>
+          <a
+            href="/"
+            onClick={goToClient}
+            style={{
+              color: '#0D7C66',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#E8F6F3',
+              padding: '6px 12px',
+              borderRadius: '8px'
+            }}
+          >
             <span>←</span> {isAr ? 'تطبيق المراجع الصوتي' : 'Client Voice UI'}
           </a>
           <div className="lang-switch-pill" id="loginLangSwitcher">
@@ -109,22 +159,93 @@ export default function Login({ onNavigate }) {
             <p className="login-sub1" id="loginSub1Text">{t.sub1}</p>
             <p className="login-sub2" id="loginSub2Text">{t.sub2}</p>
 
+            {errorMsg && (
+              <div
+                style={{
+                  background: '#FEE2E2',
+                  border: '1px solid #FCA5A5',
+                  color: '#991B1B',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div
+                style={{
+                  background: '#DCFCE7',
+                  border: '1px solid #86EFAC',
+                  color: '#166534',
+                  borderRadius: '10px',
+                  padding: '10px 14px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>{successMsg}</span>
+              </div>
+            )}
+
             <form id="loginForm" className="login-form-exact" onSubmit={handleSubmit}>
               <div className="form-group-exact">
                 <label htmlFor="loginEmail" className="form-label-exact" id="lblEmailText">{t.email}</label>
-                <input type="email" id="loginEmail" className="form-input-exact" defaultValue="admin@afiya.clinic" placeholder="admin@afiya.clinic" required />
+                <input
+                  type="email"
+                  id="loginEmail"
+                  className="form-input-exact"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@afiya.clinic"
+                  required
+                />
               </div>
 
               <div className="form-group-exact">
                 <label htmlFor="loginPassword" className="form-label-exact" id="lblPasswordText">{t.password}</label>
                 <div className="input-password-wrap">
-                  <button type="button" className="eye-toggle-btn" id="passwordToggle" title="Toggle password visibility" onClick={() => setShowPassword((s) => !s)}>
+                  <button
+                    type="button"
+                    className="eye-toggle-btn"
+                    id="passwordToggle"
+                    title="Toggle password visibility"
+                    onClick={() => setShowPassword((s) => !s)}
+                  >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
                   </button>
-                  <input type={showPassword ? 'text' : 'password'} id="loginPassword" className="form-input-exact password-field" defaultValue="••••••••••••" placeholder="Enter password" required />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="loginPassword"
+                    className="form-input-exact password-field"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    required
+                  />
                 </div>
               </div>
 
@@ -132,18 +253,31 @@ export default function Login({ onNavigate }) {
                 <a href="#forgot" className="forgot-link-exact" id="linkForgot">{t.forgot}</a>
                 <label className="remember-label-exact" id="lblRememberWrap">
                   <span id="lblRemember">{t.remember}</span>
-                  <input type="checkbox" id="rememberMe" defaultChecked />
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
                   <span className="custom-chk-exact"></span>
                 </label>
               </div>
 
-              <button type="submit" className="btn-signin-exact" id="btnSignIn">
-                <span id="btnSignInText">{t.signIn}</span>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
+              <button type="submit" className="btn-signin-exact" id="btnSignIn" disabled={isLoading}>
+                <span id="btnSignInText">{isLoading ? t.signingIn : t.signIn}</span>
+                {isLoading ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-1.42"></path>
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                )}
               </button>
+
+
             </form>
           </div>
 

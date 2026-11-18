@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider } from './context/LanguageContext.jsx';
 import { TaskProvider } from './context/TaskContext.jsx';
+import { authService } from './services/supabase.js';
 import ClientVoiceAgent from './pages/ClientVoiceAgent.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -26,6 +27,13 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
+  const requireAuth = (Component) => {
+    if (!authService.isAuthenticated()) {
+      return <Login onNavigate={navigate} />;
+    }
+    return Component;
+  };
+
   const renderView = () => {
     switch (currentPath) {
       case '/login':
@@ -33,16 +41,16 @@ export default function App() {
         return <Login onNavigate={navigate} />;
       case '/dashboard':
       case '/tasks':
-        return <Dashboard onNavigate={navigate} />;
+        return requireAuth(<Dashboard onNavigate={navigate} />);
       case '/knowledge':
-        return <Knowledge onNavigate={navigate} />;
+        return requireAuth(<Knowledge onNavigate={navigate} />);
       case '/organization':
-        return <Organization onNavigate={navigate} />;
+        return requireAuth(<Organization onNavigate={navigate} />);
       case '/privacy':
-        return <Privacy onNavigate={navigate} />;
+        return requireAuth(<Privacy onNavigate={navigate} />);
       case '/voice':
       case '/voice-dialect':
-        return <VoiceDialect onNavigate={navigate} />;
+        return requireAuth(<VoiceDialect onNavigate={navigate} />);
       case '/':
       default:
         return <ClientVoiceAgent onNavigate={navigate} />;
@@ -59,5 +67,3 @@ export default function App() {
     </LanguageProvider>
   );
 }
-
-
